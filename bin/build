@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+
+set -e
+
+build() {
+  echo "= Building for $1"
+  cargo build --target $1 --release
+  input=target/$1/release/ll
+  version=$(grep '^version' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
+  output_dir=build/v$version
+
+  mkdir -p $output_dir
+
+  if [[ ! -f "$input" ]]; then
+    input="$input.exe"
+  fi
+
+  tar -czvf $output_dir/ll-$1.tar.gz $input
+  echo
+}
+
+build x86_64-pc-windows-gnu
+build aarch64-apple-darwin
+build x86_64-apple-darwin
+build x86_64-unknown-linux-gnu
