@@ -3,7 +3,7 @@
 set -e
 
 build() {
-  echo "= Building for $1"
+  echo "= Building $1"
   cargo build --target $1 --release
   input=ll
   version=$(grep '^version' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
@@ -19,6 +19,8 @@ build() {
   echo
 }
 
+cargo clippy -- -Dwarnings -Dclippy::all -Dclippy::pedantic
+echo
 build x86_64-pc-windows-gnu
 build aarch64-apple-darwin
 build x86_64-apple-darwin
