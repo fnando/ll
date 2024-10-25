@@ -140,14 +140,14 @@ fn format_with_color(config: &Config, message: String, name: &str) -> String {
 fn resolve_icon(
     icons: &HashMap<String, String>,
     aliases: &HashMap<String, String>,
-    fallback: &String,
+    fallback: &str,
     queries: Vec<String>,
 ) -> String {
-    let mut icon = fallback.clone();
+    let mut icon = fallback.to_string();
 
     for query in queries {
         if let Some(value) = icons.get(&query) {
-            icon = value.clone();
+            icon = value.to_string();
             break;
         }
     }
@@ -184,7 +184,7 @@ fn build_file_entry(config: &Config, metadata: &fs::Metadata, path: &Path) -> St
     let icon = resolve_icon(
         &config.files,
         &config.aliases,
-        &"\u{ea7b}".to_string(),
+        "\u{ea7b}",
         vec![
             format!("{dirname}/{basename}"),
             basename.clone(),
@@ -233,7 +233,7 @@ fn build_dir_entry(config: &Config, _metadata: &fs::Metadata, path: &Path) -> St
     let icon = resolve_icon(
         &config.folders,
         &config.aliases,
-        &"\u{e5ff}".to_string(),
+        "\u{e5ff}",
         vec![basename.clone(), ext, "folder".to_string()],
     );
 
