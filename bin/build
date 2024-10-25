@@ -1,27 +1,67 @@
-#!/usr/bin/env bash
+#!/usr/bin/env ruby
+# frozen_string_literal: true
 
-set -e
+require "bundler/inline"
 
-build() {
-  echo "= Building $1"
-  cargo build --target $1 --release
-  input=ll
-  version=$(grep '^version' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
-  output_dir=build/v$version
+gemfile do
+  gem "toml-rb"
+end
 
-  mkdir -p $output_dir
+require "digest/sha2"
+require "toml-rb"
+require "fileutils"
 
-  if [[ ! -f "target/$1/release/$input" ]]; then
-    input="$input.exe"
-  fi
+def build(data, digest_field, target)
+  system("cargo build --target #{target} --release --quiet") || exit(1)
+  release_dir = "target/#{target}/release"
+  version = TomlRB.load_file(File.join(Dir.pwd, "Cargo.toml"))
+                  .dig("package", "version")
 
-  tar -C target/$1/release -czvf $output_dir/ll-$1.tar.gz $input
-  echo
-}
+  bin = target.include?("windows") ? "ll.exe" : "ll"
+  output_dir = "build/v#{version}"
+  output_path = "#{output_dir}/ll-#{target}.tar.gz"
 
-cargo clippy -- -Dwarnings -Dclippy::all -Dclippy::pedantic
-echo
-build x86_64-pc-windows-gnu
-build aarch64-apple-darwin
-build x86_64-apple-darwin
-build x86_64-unknown-linux-gnu
+  FileUtils.mkdir_p(output_dir)
+
+  system "tar -C #{release_dir} -czf #{output_path} #{bin}"
+
+  data.merge!(version:, digest_field => Digest::SHA256.hexdigest(output_path))
+end
+
+system("cargo clippy --quiet -- -Dwarnings -Dclippy::all -Dclippy::pedantic") || exit(1)
+
+data = {}
+FileUtils.rm_rf("build")
+build(data, :windows_digest, "x86_64-pc-windows-gnu")
+build(data, :macos_arm_digest, "aarch64-apple-darwin")
+build(data, :macos_intel_digest, "x86_64-apple-darwin")
+build(data, :linux_digest, "x86_64-unknown-linux-gnu")
+
+puts format(DATA.read, data)
+
+__END__
+class Ll < Formula
+  desc "A prettier terminal's ls command, with color and " \
+       "https://www.nerdfonts.com/ icons."
+  homepage "https://github.com/fnando/ll"
+  version "%{version}"
+
+  if OS.mac? && Hardware::CPU.arm?
+    url "https://github.com/fnando/ll/releases/download/v%{version}/ll-aarch64-apple-darwin.tar.gz"
+    sha256 "%{macos_arm_digest}"
+  elsif OS.mac? && Hardware::CPU.intel?
+    url "https://github.com/fnando/ll/releases/download/v%{version}/ll-x86_64-apple-darwin.tar.gz"
+    sha256 "%{macos_intel_digest}"
+  elsif OS.linux? && Hardware::CPU.intel?
+    url "https://github.com/fnando/ll/releases/download/v%{version}/ll-x86_64-unknown-linux-gnu.tar.gz"
+    sha256 "%{linux_digest}"
+  end
+
+  def install
+    bin.install "ll"
+  end
+
+  test do
+    system "#{bin}/ll", "--version"
+  end
+end
