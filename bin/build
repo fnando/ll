@@ -11,7 +11,7 @@ require "digest/sha2"
 require "toml-rb"
 require "fileutils"
 
-def build(data, digest_field, target)
+def build(target)
   system("cargo build --target #{target} --release --quiet") || exit(1)
   release_dir = "target/#{target}/release"
   version = TomlRB.load_file(File.join(Dir.pwd, "Cargo.toml"))
@@ -24,44 +24,13 @@ def build(data, digest_field, target)
   FileUtils.mkdir_p(output_dir)
 
   system "tar -C #{release_dir} -czf #{output_path} #{bin}"
-
-  data.merge!(version:, digest_field => Digest::SHA256.hexdigest(output_path))
 end
 
 system("cargo clippy --quiet -- -Dwarnings -Dclippy::all -Dclippy::pedantic") || exit(1)
 
-data = {}
 FileUtils.rm_rf("build")
-build(data, :windows_digest, "x86_64-pc-windows-gnu")
-build(data, :macos_arm_digest, "aarch64-apple-darwin")
-build(data, :macos_intel_digest, "x86_64-apple-darwin")
-build(data, :linux_digest, "x86_64-unknown-linux-gnu")
 
-puts format(DATA.read, data)
-
-__END__
-class Ll < Formula
-  desc "A prettier terminal's ls command, with color and " \
-       "https://www.nerdfonts.com/ icons."
-  homepage "https://github.com/fnando/ll"
-  version "%{version}"
-
-  if OS.mac? && Hardware::CPU.arm?
-    url "https://github.com/fnando/ll/releases/download/v%{version}/ll-aarch64-apple-darwin.tar.gz"
-    sha256 "%{macos_arm_digest}"
-  elsif OS.mac? && Hardware::CPU.intel?
-    url "https://github.com/fnando/ll/releases/download/v%{version}/ll-x86_64-apple-darwin.tar.gz"
-    sha256 "%{macos_intel_digest}"
-  elsif OS.linux? && Hardware::CPU.intel?
-    url "https://github.com/fnando/ll/releases/download/v%{version}/ll-x86_64-unknown-linux-gnu.tar.gz"
-    sha256 "%{linux_digest}"
-  end
-
-  def install
-    bin.install "ll"
-  end
-
-  test do
-    system "#{bin}/ll", "--version"
-  end
-end
+build "x86_64-pc-windows-gnu"
+build "aarch64-apple-darwin"
+build "x86_64-apple-darwin"
+build "x86_64-unknown-linux-gnu"
