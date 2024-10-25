@@ -11,5 +11,4 @@
 7. Go to https://github.com/fnando/ll/releases/new and create a new release out
    of this tag
 8. Upload the files from `build/v0.0.1/*.tar.gz`
-9. Copy the formula output and paste it on `fnando/homebrew-tap/ll.rb`, make a
-   commit and push it. You can locally test it by running `brew install ll.rb`
+9. Make it available on homebrew: `fnando/homebrew-tap/ll.rb`.
