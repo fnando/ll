@@ -257,6 +257,7 @@ fn show_dir(
     let mut paths: Vec<PathBuf> = fs::read_dir(path)
         .map_err(|_| Error::UnableToReadDir(path.into()))?
         .filter_map(|entry| entry.ok().map(|e| e.path()))
+        .filter(|p| p.file_name().unwrap_or_default() != ".DS_Store")
         .collect();
 
     paths.sort_by_key(|path| {
