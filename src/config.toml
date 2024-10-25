@@ -22,8 +22,15 @@
 "rails" =                  "\ue604"
 "yarn" =                   "\ue6a7"
 "safari" =                 "\ue748"
+"golang" =                 "\ue65e"
 
 [files]
+# golang
+".go" =                    "golang"
+"go.mod" =                 "golang"
+"go.sum" =                 "golang"
+"go.list" =                "golang"
+
 # vim
 ".vim" =                   "vim"
 ".viminfo" =               "vim"
@@ -210,7 +217,6 @@
 ".firebaserc" =            "\ue657"
 ".font" =                  "\uf031"
 ".gem" =                   "\ue739"
-".go" =                    "\ue626"
 ".hs" =                    "\ue777"
 ".html" =                  "\ue60e"
 ".icc" =                   "\ueb5c"
