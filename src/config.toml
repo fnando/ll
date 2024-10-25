@@ -76,6 +76,8 @@
 ".env.local" =             "dotenv"
 ".env.production" =        "dotenv"
 ".env.test" =              "dotenv"
+".env.example" =           "dotenv"
+".env.sample" =            "dotenv"
 
 # readme
 "README" =                 "book"
