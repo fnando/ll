@@ -5,17 +5,17 @@ set -e
 build() {
   echo "= Building for $1"
   cargo build --target $1 --release
-  input=target/$1/release/ll
+  input=ll
   version=$(grep '^version' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
   output_dir=build/v$version
 
   mkdir -p $output_dir
 
-  if [[ ! -f "$input" ]]; then
+  if [[ ! -f "target/$1/release/$input" ]]; then
     input="$input.exe"
   fi
 
-  tar -czvf $output_dir/ll-$1.tar.gz $input
+  tar -C target/$1/release -czvf $output_dir/ll-$1.tar.gz $input
   echo
 }
 
