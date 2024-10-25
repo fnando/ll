@@ -23,6 +23,8 @@
 "yarn" =                   "\ue6a7"
 "safari" =                 "\ue748"
 "golang" =                 "\ue65e"
+"config" =                 "\ue615"
+"text" =                   "\uf0f6"
 
 [files]
 # golang
@@ -115,6 +117,7 @@
 # image
 ".avif" =                  "image"
 ".bmp" =                   "image"
+".eps" =                   "image"
 ".gif" =                   "image"
 ".heif" =                  "image"
 ".ico" =                   "image"
@@ -187,11 +190,24 @@
 ".sh" =                    "shell"
 ".shell" =                 "shell"
 ".zsh" =                   "shell"
+".fish" =                  "shell"
+".fishrc" =                "shell"
+".fish_history" =          "shell"
 ".zshrc" =                 "shell"
 "zshrc" =                  "shell"
 ".zshenv" =                "shell"
 ".zsh_history" =           "shell"
 ".bash_history" =          "shell"
+
+# config
+".cnf" =                   "config"
+".conf" =                  "config"
+".ini" =                   "config"
+
+# text
+".log" =                   "text"
+".txt" =                   "text"
+".rst" =                   "text"
 
 # everything else
 ".ai" =                    "\ue7b4"
@@ -200,9 +216,7 @@
 ".bin" =                   "\ueae8"
 ".c" =                     "\ue61e"
 ".clj" =                   "\ue768"
-".cnf" =                   "\ue615"
 ".coffee" =                "\uf0f4"
-".conf" =                  "\ue615"
 ".cpp" =                   "\ue61d"
 ".crx" =                   "\uf268"
 ".css" =                   "\ue614"
@@ -231,7 +245,6 @@
 ".less" =                  "\ue758"
 ".lhs" =                   "\ue777"
 ".lock" =                  "\uf456"
-".log" =                   "\uf0f6"
 ".lua" =                   "\ue620"
 ".md" =                    "\uf48a"
 ".mustache" =              "\ue60f"
@@ -267,7 +280,6 @@
 ".ts" =                    "\ue628"
 ".tsx" =                   "\ue7ba"
 ".twig" =                  "\ue61c"
-".txt" =                   "\uf0f6"
 ".vue" =                   "\uf802"
 ".wasm" =                  "\ue6a1"
 ".windows" =               "\uf17a"
@@ -284,6 +296,7 @@
 "file" =                   "\uf4a5"
 "gruntfile.js" =           "\ue74c"
 "Makefile" =               "\ue673"
+"nginx.conf"             = "\ue776"
 "package-lock.json" =      "\uf456"
 "package.json" =           "\ue71e"
 "Procfile" =               "\ueba2"
