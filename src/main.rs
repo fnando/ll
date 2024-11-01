@@ -357,14 +357,15 @@ fn display_in_columns(list: &[String]) {
     let term_width: usize = if let Ok((width, _)) = terminal::size() {
         width.into()
     } else {
-        0
+        1
     };
 
     let list_len = list.len();
     let col_gap = 2;
     let col_width = max_item_len + col_gap;
+    let mut cols = max(1, term_width / col_width);
+
     // similar result to using .ceil() on a floating-point division
-    let mut cols = max(1, (term_width + col_width - 1) / col_width);
     let mut rows = max(1, (list_len + cols - 1) / cols);
 
     if rows == 1 {
