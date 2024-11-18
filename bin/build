@@ -11,12 +11,14 @@ require "digest/sha2"
 require "toml-rb"
 require "fileutils"
 
-def build(target)
-  system("cargo build --target #{target} --release --quiet") || exit(1)
-  release_dir = "target/#{target}/release"
-  version = TomlRB.load_file(File.join(Dir.pwd, "Cargo.toml"))
-                  .dig("package", "version")
+def version
+  TomlRB.load_file(File.join(Dir.pwd, "Cargo.toml")).dig("package", "version")
+end
 
+def build(target)
+  puts "Building #{target}..."
+  system("cargo zigbuild --target #{target} --release --quiet") || exit(1)
+  release_dir = "target/#{target}/release"
   bin = target.include?("windows") ? "ll.exe" : "ll"
   output_dir = "build/v#{version}"
   output_path = "#{output_dir}/ll-#{target}.tar.gz"
@@ -26,11 +28,43 @@ def build(target)
   system "tar -C #{release_dir} -czf #{output_path} #{bin}"
 end
 
+def build_deb(target, arch)
+  dir = "deb/ll-#{target}-#{version}"
+  bin_dir = File.join(dir, "usr/local/bin")
+  output_dir = "build/v#{version}"
+
+  FileUtils.mkdir_p(bin_dir)
+  FileUtils.cp File.join("target", target, "release", "ll"),
+               File.join(bin_dir, "ll")
+  FileUtils.mkdir_p(File.join(dir, "DEBIAN"))
+  File.open(File.join(dir, "DEBIAN", "control"), "w+") do |io|
+    io.puts <<~CONTROL
+      Package: ll
+      Version: #{version}
+      Architecture: #{arch}
+      Maintainer: Nando Vieira <me@fnando.com>
+      Description: A prettier terminal's ls command, with color and nerdfonts.com icons.
+    CONTROL
+  end
+
+  system "dpkg-deb --build --root-owner-group #{dir}"
+  FileUtils.mv "#{dir}.deb", output_dir
+end
+
 system("cargo clippy --quiet -- -Dwarnings -Dclippy::all -Dclippy::pedantic") || exit(1)
 
-FileUtils.rm_rf("build")
+FileUtils.rm_rf("build/*")
 
-build "x86_64-pc-windows-gnu"
-build "aarch64-apple-darwin"
-build "x86_64-apple-darwin"
-build "x86_64-unknown-linux-gnu"
+%w[
+  x86_64-pc-windows-gnu
+  aarch64-pc-windows-gnullvm
+  x86_64-apple-darwin
+  aarch64-apple-darwin
+  x86_64-unknown-linux-gnu
+  aarch64-unknown-linux-gnu
+].each do |target|
+  build(target)
+end
+
+build_deb "aarch64-unknown-linux-gnu", "arm64"
+build_deb "x86_64-unknown-linux-gnu", "amd64"
