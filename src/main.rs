@@ -27,6 +27,7 @@ struct OptionalConfig {
     folders: Option<HashMap<String, String>>,
     files: Option<HashMap<String, String>>,
     colors: Option<HashMap<String, String>>,
+    ignore: Option<HashMap<String, Vec<String>>>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -35,6 +36,12 @@ struct Config {
     folders: HashMap<String, String>,
     files: HashMap<String, String>,
     colors: HashMap<String, String>,
+    ignore: HashMap<String, Vec<String>>,
+}
+
+struct Entry {
+    path: PathBuf,
+    metadata: Option<Metadata>,
 }
 
 #[derive(Error, Debug)]
@@ -71,6 +78,11 @@ struct Cmd {
     /// Force output to be one entry per line.
     #[arg(short = '1')]
     single_column: bool,
+
+    /// Show all files and folders, including ignoring the `ignore`
+    /// configuration.
+    #[arg(short = 'a')]
+    all: bool,
 }
 
 fn main() {
@@ -254,26 +266,48 @@ fn show_dir(
     _metadata: &fs::Metadata,
     path: &Path,
 ) -> Result<(), Error> {
-    let mut paths: Vec<PathBuf> = fs::read_dir(path)
-        .map_err(|_| Error::UnableToReadDir(path.into()))?
-        .filter_map(|entry| entry.ok().map(|e| e.path()))
-        .filter(|p| p.file_name().unwrap_or_default() != ".DS_Store")
+    let folders: Vec<String> = config
+        .ignore
+        .get("folders")
+        .expect("Couldn't get ignore.folders")
+        .iter()
+        .map(|s| s.to_lowercase())
+        .collect();
+    let files: Vec<String> = config
+        .ignore
+        .get("files")
+        .expect("Couldn't get ignore.files")
+        .iter()
+        .map(|s| s.to_lowercase())
         .collect();
 
-    paths.sort_by_key(|path| {
-        path.file_name()
+    let mut entries: Vec<Entry> = fs::read_dir(path)
+        .map_err(|_| Error::UnableToReadDir(path.into()))?
+        .filter_map(|entry| entry.ok().map(|e| e.path()))
+        .map(|path| Entry {
+            path: path.clone(),
+            metadata: fs::metadata(path.clone()).ok(),
+        })
+        .filter(|entry| cmd.all || ignore_entry(entry, &folders, &files))
+        .collect();
+
+    entries.sort_by_key(|entry| {
+        entry
+            .path
+            .file_name()
             .map(|name| name.to_os_string().to_ascii_lowercase())
     });
 
     let mut list: Vec<String> = vec![];
 
-    for entry_path in paths {
-        let Ok(metadata) = fs::metadata(entry_path.clone()) else {
+    for entry in entries {
+        let Some(metadata) = entry.metadata else {
             let item = format_with_color(
                 config,
                 format!(
                     "  \u{f481} {}",
-                    entry_path
+                    entry
+                        .path
                         .file_name()
                         .unwrap_or_default()
                         .to_str()
@@ -288,9 +322,9 @@ fn show_dir(
         };
 
         let item = if metadata.is_dir() {
-            build_dir_entry(config, &metadata, &entry_path)
+            build_dir_entry(config, &metadata, &entry.path)
         } else {
-            build_file_entry(config, &metadata, &entry_path)
+            build_file_entry(config, &metadata, &entry.path)
         };
 
         list.push(item);
@@ -342,6 +376,16 @@ fn get_config() -> Result<Config, Error> {
         config
             .aliases
             .extend(custom_config.aliases.unwrap_or_default());
+
+        let ignore = custom_config.ignore.unwrap_or_default();
+
+        if let Some(files) = ignore.get("files") {
+            config.ignore.insert("files".to_string(), files.clone());
+        }
+
+        if let Some(folders) = ignore.get("folders") {
+            config.ignore.insert("folders".to_string(), folders.clone());
+        }
     }
 
     Ok(config)
@@ -421,4 +465,35 @@ fn get_file_size(metadata: &Metadata) -> u64 {
     {
         metadata.file_size()
     }
+}
+
+fn ignore_entry(entry: &Entry, folders: &[String], files: &[String]) -> bool {
+    let basename = entry
+        .path
+        .file_name()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .to_string()
+        .to_lowercase();
+    let extname = entry
+        .path
+        .extension()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .to_string()
+        .to_lowercase();
+    let extname = format!(".{extname}");
+
+    // If we're able to retrieve the metadata, be specific about the type of
+    // entry and its ignored values; otherwise, compare the file name against
+    // everything.
+    if let Some(metadata) = &entry.metadata {
+        if metadata.is_dir() {
+            return !folders.contains(&basename);
+        }
+
+        return !(files.contains(&basename) || files.contains(&extname));
+    };
+
+    !(files.contains(&basename) || files.contains(&extname) || folders.contains(&basename))
 }

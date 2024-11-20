@@ -452,3 +452,7 @@
 "file_size"       = "white"
 "hidden"          = "yellow"
 "hidden_dir"      = "yellow"
+
+[ignore]
+"files" = [".LOG1", ".LOG2", ".regtrans-ms", ".DS_Store", "ntuser.ini", "NTUSER.DAT"]
+"folders" = []
