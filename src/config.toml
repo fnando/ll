@@ -454,5 +454,5 @@
 "hidden_dir"      = "yellow"
 
 [ignore]
-"files" = [".LOG1", ".LOG2", ".regtrans-ms", ".DS_Store", "ntuser.ini", "NTUSER.DAT"]
+"files" = [".LOG1", ".LOG2", ".regtrans-ms", ".DS_Store", "ntuser.ini", "NTUSER.DAT", ".blf"]
 "folders" = []
