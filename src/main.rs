@@ -3,12 +3,12 @@ use crossterm::{
     style::{Color, Stylize},
     terminal,
 };
+use glob::glob;
 use regex::Regex;
 use serde::Deserialize;
 use std::{
     cmp::max,
     collections::HashMap,
-    env,
     fs::{self, Metadata},
     path::{Path, PathBuf},
     process,
@@ -39,6 +39,7 @@ struct Config {
     ignore: HashMap<String, Vec<String>>,
 }
 
+#[derive(Debug)]
 struct Entry {
     path: PathBuf,
     metadata: Option<Metadata>,
@@ -46,23 +47,17 @@ struct Entry {
 
 #[derive(Error, Debug)]
 enum Error {
-    #[error("couldn't retrieve the current directory")]
-    CurrentDir,
-
     #[error("unable to retrieve metadata for {0:?}")]
     Metadata(PathBuf),
 
     #[error("unable to retrieve the home directory")]
     HomeDirNotFound,
 
-    #[error("invalid path {0:?}")]
-    InvalidPath(String),
-
-    #[error("unable to read dir: {0:?}")]
-    UnableToReadDir(PathBuf),
-
     #[error(transparent)]
     Io(#[from] std::io::Error),
+
+    #[error(transparent)]
+    Glob(#[from] glob::PatternError),
 }
 
 /// A simple implementation of the `ls` command that uses
@@ -73,6 +68,7 @@ enum Error {
 #[allow(clippy::struct_excessive_bools)]
 struct Cmd {
     /// The entry that must be displayed.
+    /// Can also be a glob pattern.
     path: Option<String>,
 
     /// Force output to be one entry per line.
@@ -98,20 +94,24 @@ fn main() {
 fn run() -> Result<(), Error> {
     let config = get_config()?;
     let cmd = Cmd::parse();
-    let path = if let Some(ref path) = cmd.path {
-        fs::canonicalize(path.clone()).map_err(|_| Error::InvalidPath(path.clone()))?
-    } else {
-        env::current_dir().map_err(|_| Error::CurrentDir)?
-    };
+    let mut input = cmd.path.clone().unwrap_or("./*".to_string());
 
-    let metadata = fs::metadata(path.clone()).map_err(|_| Error::Metadata(path.clone()))?;
+    // If listing a plain directory, let's show only the entries.
+    // E.g., instead of showing `dir/file`, show only `file`.
+    let mut truncate_basename = false;
 
-    if metadata.is_dir() {
-        show_dir(&cmd, &config, &metadata, &path)?;
-    } else {
-        let output = build_file_entry(&config, &metadata, &path);
-        println!("{output}");
+    if let Ok(metadata) = fs::metadata(input.clone()) {
+        if metadata.is_dir() {
+            truncate_basename = true;
+            input = format!("{input}/*");
+        }
     }
+
+    let paths: Vec<PathBuf> = glob(input.clone().as_str())?
+        .filter_map(Result::ok)
+        .collect();
+
+    show_entries(&cmd, &config, &paths, truncate_basename)?;
 
     Ok(())
 }
@@ -172,19 +172,28 @@ fn resolve_icon(
     icon
 }
 
-fn build_file_entry(config: &Config, metadata: &fs::Metadata, path: &Path) -> String {
+fn build_file_entry(
+    config: &Config,
+    metadata: &fs::Metadata,
+    path: &Path,
+    _pwd: &Path,
+    truncate_basename: bool,
+) -> String {
     let dirname = path
         .parent()
         .expect("couldn't find parent dir")
         .to_str()
         .unwrap_or_default()
         .to_string();
-    let basename = path
-        .file_name()
-        .unwrap_or_default()
-        .to_str()
-        .unwrap()
-        .to_string();
+    let basename = if truncate_basename {
+        path.file_name()
+            .unwrap_or_default()
+            .to_str()
+            .unwrap()
+            .to_string()
+    } else {
+        path.display().to_string()
+    };
     let ext = path
         .extension()
         .unwrap_or_default()
@@ -227,13 +236,21 @@ fn build_file_entry(config: &Config, metadata: &fs::Metadata, path: &Path) -> St
     input
 }
 
-fn build_dir_entry(config: &Config, _metadata: &fs::Metadata, path: &Path) -> String {
-    let basename = path
-        .file_name()
-        .unwrap_or_default()
-        .to_str()
-        .unwrap()
-        .to_string();
+fn build_dir_entry(
+    config: &Config,
+    _metadata: &fs::Metadata,
+    path: &Path,
+    truncate_basename: bool,
+) -> String {
+    let basename = if truncate_basename {
+        path.file_name()
+            .unwrap_or_default()
+            .to_str()
+            .unwrap()
+            .to_string()
+    } else {
+        path.display().to_string()
+    };
     let ext = path
         .extension()
         .unwrap_or_default()
@@ -260,12 +277,14 @@ fn build_dir_entry(config: &Config, _metadata: &fs::Metadata, path: &Path) -> St
     format_with_color(config, input, color_type)
 }
 
-fn show_dir(
+fn show_entries(
     cmd: &Cmd,
     config: &Config,
-    _metadata: &fs::Metadata,
-    path: &Path,
+    paths: &[PathBuf],
+    truncate_basename: bool,
 ) -> Result<(), Error> {
+    let pwd = std::env::current_dir()?;
+
     let folders: Vec<String> = config
         .ignore
         .get("folders")
@@ -281,13 +300,15 @@ fn show_dir(
         .map(|s| s.to_lowercase())
         .collect();
 
-    let mut entries: Vec<Entry> = fs::read_dir(path)
-        .map_err(|_| Error::UnableToReadDir(path.into()))?
-        .filter_map(|entry| entry.ok().map(|e| e.path()))
+    let mut entries: Vec<Entry> = paths
+        .iter()
         .map(|path| Entry {
             path: path.clone(),
-            metadata: fs::metadata(path.clone()).ok(),
+            metadata: fs::metadata(path.clone())
+                .map_err(|_| Error::Metadata(path.clone()))
+                .ok(),
         })
+        .filter(|entry| !entry.path.display().to_string().ends_with('.'))
         .filter(|entry| cmd.all || ignore_entry(entry, &folders, &files))
         .collect();
 
@@ -301,18 +322,12 @@ fn show_dir(
     let mut list: Vec<String> = vec![];
 
     for entry in entries {
+        let relative_path = pathdiff::diff_paths(&entry.path, &pwd).unwrap_or(entry.path.clone());
+
         let Some(metadata) = entry.metadata else {
             let item = format_with_color(
                 config,
-                format!(
-                    "  \u{f481} {}",
-                    entry
-                        .path
-                        .file_name()
-                        .unwrap_or_default()
-                        .to_str()
-                        .unwrap_or_default()
-                ),
+                format!("  \u{f481} {}", relative_path.display()),
                 "dead_link",
             );
 
@@ -322,9 +337,9 @@ fn show_dir(
         };
 
         let item = if metadata.is_dir() {
-            build_dir_entry(config, &metadata, &entry.path)
+            build_dir_entry(config, &metadata, &relative_path, truncate_basename)
         } else {
-            build_file_entry(config, &metadata, &entry.path)
+            build_file_entry(config, &metadata, &relative_path, &pwd, truncate_basename)
         };
 
         list.push(item);
@@ -475,6 +490,7 @@ fn ignore_entry(entry: &Entry, folders: &[String], files: &[String]) -> bool {
         .to_string_lossy()
         .to_string()
         .to_lowercase();
+
     let extname = entry
         .path
         .extension()
