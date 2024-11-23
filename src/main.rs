@@ -75,9 +75,8 @@ struct Cmd {
     #[arg(short = '1')]
     single_column: bool,
 
-    /// Show all files and folders, including ignoring the `ignore`
-    /// configuration.
-    #[arg(short = 'a')]
+    /// Show all files and folders, disabling the `ignore` configuration.
+    #[arg(long, short = 'a')]
     all: bool,
 }
 
