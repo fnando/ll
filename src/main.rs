@@ -53,6 +53,9 @@ enum Error {
     #[error("unable to retrieve the home directory")]
     HomeDirNotFound,
 
+    #[error("couldn't find the specified path {0:?}")]
+    PathNotFound(String),
+
     #[error(transparent)]
     Io(#[from] std::io::Error),
 
@@ -105,16 +108,20 @@ fn run() -> Result<(), Error> {
         }
     }
 
-    let basedir =
-        fs::canonicalize(Path::new(&input).parent().unwrap()).expect("Couldn't find parent dir");
-
     let paths: Vec<PathBuf> = glob(input.clone().as_str())?
         .filter_map(Result::ok)
         .collect();
 
-    show_entries(&cmd, &config, &paths, &basedir);
+    let parent = Path::new(&input)
+        .parent()
+        .expect("Couldn't get the parent dir");
 
-    Ok(())
+    if let Ok(basedir) = fs::canonicalize(parent) {
+        show_entries(&cmd, &config, &paths, &basedir);
+        return Ok(());
+    }
+
+    Err(Error::PathNotFound(input))
 }
 
 fn get_color_from_string(color_name: &str) -> Color {
