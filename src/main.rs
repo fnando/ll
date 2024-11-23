@@ -10,7 +10,7 @@ use std::{
     cmp::max,
     collections::HashMap,
     fs::{self, Metadata},
-    path::{Path, PathBuf},
+    path::{Path, PathBuf, MAIN_SEPARATOR},
     process,
 };
 use thiserror::Error;
@@ -94,24 +94,26 @@ fn main() {
 fn run() -> Result<(), Error> {
     let config = get_config()?;
     let cmd = Cmd::parse();
-    let mut input = cmd.path.clone().unwrap_or("./*".to_string());
-
-    // If listing a plain directory, let's show only the entries.
-    // E.g., instead of showing `dir/file`, show only `file`.
-    let mut truncate_basename = false;
+    let mut input = expand_path(
+        &cmd.path
+            .clone()
+            .unwrap_or(format!(".{MAIN_SEPARATOR}*").to_string()),
+    );
 
     if let Ok(metadata) = fs::metadata(input.clone()) {
         if metadata.is_dir() {
-            truncate_basename = true;
-            input = format!("{input}/*");
+            input = Path::new(&input).join("*").to_str().unwrap().to_string();
         }
     }
+
+    let basedir =
+        fs::canonicalize(Path::new(&input).parent().unwrap()).expect("Couldn't find parent dir");
 
     let paths: Vec<PathBuf> = glob(input.clone().as_str())?
         .filter_map(Result::ok)
         .collect();
 
-    show_entries(&cmd, &config, &paths, truncate_basename)?;
+    show_entries(&cmd, &config, &paths, &basedir);
 
     Ok(())
 }
@@ -172,28 +174,19 @@ fn resolve_icon(
     icon
 }
 
-fn build_file_entry(
-    config: &Config,
-    metadata: &fs::Metadata,
-    path: &Path,
-    _pwd: &Path,
-    truncate_basename: bool,
-) -> String {
+fn build_file_entry(config: &Config, metadata: &fs::Metadata, path: &Path, _pwd: &Path) -> String {
     let dirname = path
         .parent()
         .expect("couldn't find parent dir")
         .to_str()
         .unwrap_or_default()
         .to_string();
-    let basename = if truncate_basename {
-        path.file_name()
-            .unwrap_or_default()
-            .to_str()
-            .unwrap()
-            .to_string()
-    } else {
-        path.display().to_string()
-    };
+    let basename = path
+        .file_name()
+        .unwrap_or_default()
+        .to_str()
+        .unwrap()
+        .to_string();
     let ext = path
         .extension()
         .unwrap_or_default()
@@ -236,21 +229,13 @@ fn build_file_entry(
     input
 }
 
-fn build_dir_entry(
-    config: &Config,
-    _metadata: &fs::Metadata,
-    path: &Path,
-    truncate_basename: bool,
-) -> String {
-    let basename = if truncate_basename {
-        path.file_name()
-            .unwrap_or_default()
-            .to_str()
-            .unwrap()
-            .to_string()
-    } else {
-        path.display().to_string()
-    };
+fn build_dir_entry(config: &Config, _metadata: &fs::Metadata, path: &Path) -> String {
+    let basename = path
+        .file_name()
+        .unwrap_or_default()
+        .to_str()
+        .unwrap()
+        .to_string();
     let ext = path
         .extension()
         .unwrap_or_default()
@@ -277,14 +262,7 @@ fn build_dir_entry(
     format_with_color(config, input, color_type)
 }
 
-fn show_entries(
-    cmd: &Cmd,
-    config: &Config,
-    paths: &[PathBuf],
-    truncate_basename: bool,
-) -> Result<(), Error> {
-    let pwd = std::env::current_dir()?;
-
+fn show_entries(cmd: &Cmd, config: &Config, paths: &[PathBuf], pwd: &PathBuf) {
     let folders: Vec<String> = config
         .ignore
         .get("folders")
@@ -322,7 +300,7 @@ fn show_entries(
     let mut list: Vec<String> = vec![];
 
     for entry in entries {
-        let relative_path = pathdiff::diff_paths(&entry.path, &pwd).unwrap_or(entry.path.clone());
+        let relative_path = pathdiff::diff_paths(&entry.path, pwd).unwrap_or(entry.path.clone());
 
         let Some(metadata) = entry.metadata else {
             let item = format_with_color(
@@ -337,9 +315,9 @@ fn show_entries(
         };
 
         let item = if metadata.is_dir() {
-            build_dir_entry(config, &metadata, &relative_path, truncate_basename)
+            build_dir_entry(config, &metadata, &relative_path)
         } else {
-            build_file_entry(config, &metadata, &relative_path, &pwd, truncate_basename)
+            build_file_entry(config, &metadata, &relative_path, pwd)
         };
 
         list.push(item);
@@ -352,8 +330,6 @@ fn show_entries(
     } else {
         display_in_columns(&list);
     }
-
-    Ok(())
 }
 
 fn get_config_file() -> Result<PathBuf, Error> {
@@ -512,4 +488,21 @@ fn ignore_entry(entry: &Entry, folders: &[String], files: &[String]) -> bool {
     };
 
     !(files.contains(&basename) || files.contains(&extname) || folders.contains(&basename))
+}
+
+fn expand_path(input: &str) -> String {
+    let mut path = input;
+
+    if let Some(stripped) = input.strip_prefix("~") {
+        path = stripped;
+
+        if let Some(stripped) = path.strip_prefix("/") {
+            path = stripped;
+        }
+
+        let home_dir = dirs::home_dir().expect("Couldn't find home directory");
+        return home_dir.join(path).to_string_lossy().to_string();
+    }
+
+    path.to_string()
 }
