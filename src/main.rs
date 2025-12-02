@@ -167,7 +167,7 @@ fn resolve_icon(
 
     for query in queries {
         if let Some(value) = icons.get(&query) {
-            icon = value.to_string();
+            icon.clone_from(value);
             break;
         }
     }
@@ -229,7 +229,7 @@ fn build_file_entry(config: &Config, metadata: &fs::Metadata, path: &Path, _pwd:
 
     input = format!(
         "{input} {}",
-        format_with_color(config, size.to_string(), "file_size")
+        format_with_color(config, size.clone(), "file_size")
     );
 
     input
@@ -407,7 +407,7 @@ fn display_in_columns(list: &[String]) {
     let mut cols = max(1, term_width / col_width);
 
     // similar result to using .ceil() on a floating-point division
-    let mut rows = max(1, (list_len + cols - 1) / cols);
+    let mut rows = max(1, list_len.div_ceil(cols));
 
     if rows == 1 {
         cols = 1;
@@ -491,7 +491,7 @@ fn ignore_entry(entry: &Entry, folders: &[String], files: &[String]) -> bool {
         }
 
         return !(files.contains(&basename) || files.contains(&extname));
-    };
+    }
 
     !(files.contains(&basename) || files.contains(&extname) || folders.contains(&basename))
 }
