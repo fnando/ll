@@ -61,6 +61,7 @@ FileUtils.rm_rf("build/*")
   x86_64-apple-darwin
   aarch64-apple-darwin
   x86_64-unknown-linux-gnu
+  x86_64-unknown-linux-musl
   aarch64-unknown-linux-gnu
 ].each do |target|
   build(target)
@@ -68,3 +69,4 @@ end
 
 build_deb "aarch64-unknown-linux-gnu", "arm64"
 build_deb "x86_64-unknown-linux-gnu", "amd64"
+build_deb "x86_64-unknown-linux-musl", "amd64"

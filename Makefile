@@ -4,7 +4,7 @@ image:
 	docker build -t ll .
 
 dist:
-	docker run --rm -e SDKROOT=/app/MacOSX.sdk -v $(CURRENT_DIR)/build:/app/build ll bin/build
+	docker run --rm -e SDKROOT=/app/MacOSX.sdk -v $(CURRENT_DIR):/app ll bin/build
 
 console:
-	docker run -it --rm -e SDKROOT=/app/MacOSX.sdk -v $(CURRENT_DIR)/build:/app/build ll /bin/bash
+	docker run -it --rm -e SDKROOT=/app/MacOSX.sdk -v $(CURRENT_DIR):/app ll /bin/bash

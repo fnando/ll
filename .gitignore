@@ -3,3 +3,5 @@
 /Brewfile.lock.json
 /tmp
 /MacOSX.sdk
+/deb
+.intentionally-empty-file.o
